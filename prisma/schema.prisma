@@ -1,0 +1,73 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(cuid()) @map("_id")
+  clerkId       String?   @unique
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  courses       Course[]  @relation("UserCourses")
+}
+
+
+model Course {
+  id           Int       @id @default(autoincrement())
+  title        String
+  prerequisites String
+  startDate    DateTime  @map("start_date")
+  roadmap      Roadmap[] @relation("CourseRoadmap")
+  createdById  String    @map("created_by_id")
+  createdBy    User      @relation("UserCourses", fields: [createdById], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Roadmap {
+  id        Int       @id @default(autoincrement())
+  courseId  Int       @map("course_id")
+  course    Course    @relation("CourseRoadmap", fields: [courseId], references: [id])
+  day       Int
+  date      DateTime
+  startTime DateTime
+  endTime   DateTime
+  topic     String
+  video     Video?    @relation("RoadmapVideo") // Define the relation name
+  docs      Doc[]     @relation("RoadmapDocs")
+  quizzes   Quiz[]    @relation("RoadmapQuizzes")
+}
+
+model Video {
+  id        Int       @id @default(autoincrement())
+  title     String
+  url       String
+  roadmapId Int?      @unique @map("roadmap_id") // Add @unique for one-to-one relation
+  roadmap   Roadmap?  @relation("RoadmapVideo", fields: [roadmapId], references: [id])
+  completed Boolean  @default(false)
+}
+
+
+model Doc {
+  id         Int      @id @default(autoincrement())
+  url        String
+  roadmapId  Int      @map("roadmap_id")
+  roadmap    Roadmap  @relation("RoadmapDocs", fields: [roadmapId], references: [id])
+  completed Boolean  @default(false)
+}
+
+model Quiz {
+  id         Int       @id @default(autoincrement())
+  question   String
+  options    String[]  // Stored as an array
+  answer     String
+  roadmapId  Int       @map("roadmap_id")
+  roadmap    Roadmap   @relation("RoadmapQuizzes", fields: [roadmapId], references: [id])
+  completed Boolean  @default(false)
+}

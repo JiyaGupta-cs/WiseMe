@@ -10,6 +10,9 @@ const createRoadmap = async (req: NextApiRequest, res: NextApiResponse) => {
       const { title, prerequisites, start_date, roadmap } = req.body;
 
       // Insert the Course 
+
+      
+      
       const course = await prisma.course.create({
         data: {
           title,

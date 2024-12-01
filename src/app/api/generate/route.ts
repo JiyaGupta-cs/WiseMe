@@ -1,15 +1,57 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { NextApiRequest, NextApiResponse } from "next";
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const createCourseWithRoadmap = async (courseData: any) => {
-  const { title, prerequisites, start_date, roadmap } = courseData;
+  try {
+    const { title, prerequisites, start_date, roadmap } = courseData;
 
-  // Create the course
-  
-  
+    const result = await prisma.course.create({
+      data: {
+        title,
+        prerequisites,
+        startDate: new Date(start_date),
+        createdById: "some-user-id",
+        roadmap: {
+          create: roadmap.map((dayData: any) => ({
+            day: dayData.day,
+            date: new Date(new Date(start_date).getTime() + (dayData.day - 1) * 24 * 60 * 60 * 1000),
+            startTime: new Date(dayData.startTime),
+            endTime: new Date(dayData.endTime),
+            topic: dayData.topic,
+            video: {
+              create: {
+                title: dayData.video.title,
+                url: dayData.video.url,
+              },
+            },
+            docs: {
+              create: dayData.docs.map((docUrl: string) => ({
+                url: docUrl,
+              })),
+            },
+            quizzes: {
+              create: dayData.quiz.map((quiz: any) => ({
+                question: quiz.question,
+                options: quiz.options,
+                answer: quiz.answer,
+              })),
+            },
+          })),
+        },
+      },
+    });
+
+    console.log("Course created successfully:", result);
+    return result;
+  } catch (error) {
+    console.error("Error creating course:", error);
+    throw error;
+  }
 };
+
+
 
 export async function POST(req: Request) {
   const {
@@ -20,7 +62,6 @@ export async function POST(req: Request) {
     daily_hours_weekends,
   } = await req.json();
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-
 
   const schema = {
     description: "Personalized learning roadmap for a course",
@@ -119,24 +160,30 @@ export async function POST(req: Request) {
               nullable: false,
             },
           },
-          required: ["day", "topic", "video", "docs", "quiz", "startTime", "endTime"],
+          required: [
+            "day",
+            "topic",
+            "video",
+            "docs",
+            "quiz",
+            "startTime",
+            "endTime",
+          ],
         },
       },
     },
     required: ["title", "prerequisites", "start_date", "roadmap"],
   };
 
+  const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-pro",
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: schema,
+    },
+  });
 
-
-const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-pro",
-  generationConfig: {
-    responseMimeType: "application/json",
-    responseSchema: schema,
-  },
-});
-
-const prompt = `
+  const prompt = `
 You are a learning roadmap generator. Your task is to generate a well-structured JSON response for a personalized ${course} learning roadmap. The roadmap should include day-wise content based on the given inputs.
 
 Each day's plan must include:
@@ -160,14 +207,15 @@ Return the roadmap in the JSON format as defined in the schema.
     const result = await model.generateContent(prompt);
     const output = await result.response.text();
 
+    
 
-
-    createCourseWithRoadmap(output).then((course) => {
-      console.log('Course created successfully:', course);
-    }).catch((error) => {
-      console.error('Error creating course:', error);
-    });
-
+    createCourseWithRoadmap(output)
+      .then((course) => {
+        console.log("Course created successfully:", course);
+      })
+      .catch((error) => {
+        console.error("Error creating course:", error);
+      });
 
     return new Response(JSON.stringify({ output }), {
       status: 200,

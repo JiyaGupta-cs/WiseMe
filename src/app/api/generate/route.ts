@@ -1,8 +1,55 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextApiRequest, NextApiResponse } from "next";
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+
+const createCourseWithRoadmap = async (courseData: any) => {
+  const { title, prerequisites, start_date, roadmap } = courseData;
+
+  // Create the course
+  
+  
+  const course = await prisma.Course.create({
+    data: {
+      title,
+      prerequisites,
+      startDate: new Date(start_date),
+      roadmap: {
+        create: roadmap.map((dayData: any) => ({
+          day: dayData.day,
+          topic: dayData.topic,
+          date: new Date(dayData.startTime), // Set appropriate date
+          startTime: new Date(dayData.startTime),
+          endTime: new Date(dayData.endTime),
+          video: {
+            create: {
+              title: dayData.video.title,
+              url: dayData.video.url,
+            },
+          },
+          docs: {
+            create: dayData.docs.map((docUrl: string) => ({
+              url: docUrl,
+            })),
+          },
+          quizzes: {
+            create: dayData.quiz.map((quiz: any) => ({
+              question: quiz.question,
+              options: quiz.options,
+              answer: quiz.answer,
+            })),
+          },
+        })),
+      },
+    },
+  });
+
+  return course;
+};
 
 export async function POST(req: Request) {
   const {
+    course,
     start_date,
     learning_duration,
     daily_hours_weekdays,
@@ -12,7 +59,7 @@ export async function POST(req: Request) {
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 const prompt = `
-  You are a learning roadmap generator. Your task is to generate a well-structured JSON response for a personalized JavaScript learning roadmap. The roadmap should include day-wise content based on the given inputs.
+  You are a learning roadmap generator. Your task is to generate a well-structured JSON response for a personalized ${course} learning roadmap. The roadmap should include day-wise content based on the given inputs.
 
   Each day's plan must include:
   1. A topic to focus on.
@@ -63,7 +110,7 @@ const prompt = `
 
   ### Example:
 
-  \`\`\`json
+  
   {
     "title": "JavaScript Basics in 30 days",
     "prerequisites": "None",
@@ -107,7 +154,7 @@ const prompt = `
       }
     ]
   }
-  \`\`\`
+  
   
   `;
 
@@ -116,6 +163,16 @@ const prompt = `
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const output = await response.text();
+
+
+
+    createCourseWithRoadmap(output).then((course) => {
+      console.log('Course created successfully:', course);
+    }).catch((error) => {
+      console.error('Error creating course:', error);
+    });
+
+
     return new Response(JSON.stringify({ output }), {
       status: 200,
       headers: { "Content-Type": "application/json" },

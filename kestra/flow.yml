@@ -1,0 +1,36 @@
+id: wiweme_data_backup_scheduler
+namespace: company.team
+
+inputs:
+  - id: country
+    type: STRING
+    defaults: US
+  - id: date
+    type: DATETIME
+    required: false
+    defaults: 2023-12-24T14:00:00.000Z
+
+tasks:
+  - id: command
+    type: io.kestra.plugin.scripts.shell.Commands
+    description: "Runs a script which is responsible for downloading and encrypting the database."
+    namespaceFiles:
+      enabled: true
+    commands:
+      - apt-get update
+      - apt-get install -y software-properties-common
+      - add-apt-repository universe
+      - apt-get install -y lsb-release
+      - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | tee /etc/apt/sources.list.d/pgdg.list
+      - apt-get install -y wget ca-certificates
+      - wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+      - apt-get update
+      - apt-get install -y postgresql-client git
+      - echo "$(ls -R)"
+      - bash script.sh
+
+
+triggers:
+  - id: schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: 0 * * * *
